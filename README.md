@@ -26,7 +26,7 @@ Thích làm người khác khó chịu và tìm cách sửa cho nó hoạt độ
 - 👯 Hợp tác: không có  
 - 🤔 Cần hỗ trợ: động lực  
 - 😄 Vai trò: không có  
-- ⚡ Fun fact: sống nhờ ChatGPT,Dumb
+- ⚡ Fun fact: sống Dumb
 
 
--> Discord : alvarezjva
+-> Discord : j4tl6
