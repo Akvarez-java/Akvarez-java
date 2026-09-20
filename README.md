@@ -1,6 +1,6 @@
 ## **About Me**
 PC:
-i5-12400F | RTX 5060 | 64GB RAM | 5TB SSD
+Ryzen 9 9950X3D | RTX 5090 | 64GB RAM | 5TB SSD
 
 ## **About Me**
 - Building open-source Minecraft plugins in my free times
