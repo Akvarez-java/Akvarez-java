@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Generate a contribution-graph snake that eats every commit, then writes "YOU WIN !!".
+"""Generate a contribution-graph snake that eats every commit, then writes TEXT.
 
-The snake eats the lightest contributions first, filling a progress bar below the grid, then
-writes the text, which ends with a rainbow wave. Finally the text and bar fade out and the
+The snake eats the contributions along an optimized route, filling a progress bar below the
+grid, then writes the text stroke by stroke, which ends with a rainbow wave. Finally the text and bar fade out and the
 contributions fade back in, so the loop restarts without a jump.
 
 Usage:
@@ -22,6 +22,8 @@ STEP_MS = 100
 HOLD_STEPS = 60
 RAINBOW_EVERY = 3  # steps between rainbow color shifts while holding the text
 FADE_STEPS = 12  # length of each fade (text/bar out, then contributions back in)
+TEXT = "DC : J4TL6"
+JUMP_PENALTY = 2  # extra cost for leaving a stroke while drawing a letter
 SNAKE_LEN = 4
 HEAD_SIZE, TAIL_SIZE = 12, 7.5
 BAR_GAP, BAR_HEIGHT = 4, 10  # gap below the snake's outer lane, bar thickness
@@ -52,6 +54,14 @@ GLYPHS = {
     "I": ["XXX", ".X.", ".X.", ".X.", "XXX"],
     "N": ["X...X", "XX..X", "X.X.X", "X..XX", "X...X"],
     "!": ["X", "X", "X", ".", "X"],
+    "D": ["XXX.", "X..X", "X..X", "X..X", "XXX."],
+    "C": ["XXXX", "X...", "X...", "X...", "XXXX"],
+    ":": [".", "X", ".", "X", "."],
+    "J": ["...X", "...X", "...X", "X..X", "XXXX"],
+    "4": ["X..X", "X..X", "XXXX", "...X", "...X"],
+    "T": ["XXX", ".X.", ".X.", ".X.", ".X."],
+    "L": ["X...", "X...", "X...", "X...", "XXXX"],
+    "6": ["XXXX", "X...", "XXXX", "X..X", "XXXX"],
     " ": ["..", "..", "..", "..", ".."],
 }
 
@@ -112,49 +122,57 @@ class Snake:
         x, y = cell
         return -1 <= x <= self.width and -1 <= y <= ROWS
 
-    def path_to(self, targets, avoid=frozenset()):
-        """BFS to the nearest target, not running through the body before it has moved away
-        and, when possible, not through the `avoid` cells.
+    def path_to(self, target, avoid=frozenset()):
+        """Shortest path to `target` with the fewest turns, starting in the current heading.
 
-        Falls back to crossing the body when a long snake has boxed itself in."""
+        It never runs into the body before the tail has moved away and, when possible,
+        keeps off the `avoid` cells. Falls back to crossing the body if boxed in."""
         for avoid_body, blocked in ((True, avoid), (True, frozenset()), (False, frozenset())):
-            try:
-                return self._bfs(targets, avoid_body, blocked)
-            except RuntimeError:
-                pass
-        raise RuntimeError("no path")
+            path = self._search(target, avoid_body, blocked - {target})
+            if path is not None:
+                return path
+        raise RuntimeError("no path to %s" % (target,))
 
-    def _bfs(self, targets, avoid_body, blocked):
+    def _search(self, target, avoid_body, blocked):
         # the cell under segment k frees up once the tail has passed it
         vacate = {}
         if avoid_body:
             for k, cell in enumerate(self.body):
                 vacate[cell] = len(self.body) - k
-        start = self.body[0]
-        prev = {start: None}
-        frontier = [start]
+        head, neck = self.body[0], self.body[1]
+        heading = (head[0] - neck[0], head[1] - neck[1])
+        # layered BFS over (cell, heading); within a layer keep the fewest turns
+        best = {(head, heading): (0, None)}
+        layer = [(head, heading)]
         depth = 0
-        while frontier:
-            hits = [c for c in frontier if c in targets and c != start]
-            if hits:
-                cell = min(hits)
+        while layer:
+            done = [st for st in layer if st[0] == target]
+            if done:
+                state = min(done, key=lambda st: best[st][0])
                 path = []
-                while cell != start:
-                    path.append(cell)
-                    cell = prev[cell]
+                while state[0] != head or state[1] != heading:
+                    path.append(state[0])
+                    state = best[state][1]
                 return path[::-1]
             depth += 1
-            nxt = []
-            for x, y in frontier:
-                for n in ((x + 1, y), (x, y + 1), (x, y - 1), (x - 1, y)):
-                    if n in prev or not self.inside(n) or (n in blocked and n not in targets):
+            nxt = {}
+            for state in layer:
+                (x, y), d = state
+                turns = best[state][0]
+                for nd in ((1, 0), (0, 1), (0, -1), (-1, 0)):
+                    n = (x + nd[0], y + nd[1])
+                    if not self.inside(n) or n in blocked or depth < vacate.get(n, 0):
                         continue
-                    if depth < vacate.get(n, 0):
+                    key = (n, nd)
+                    cost = turns + (nd != d)
+                    if key in best and best[key][0] <= cost:
                         continue
-                    prev[n] = (x, y)
-                    nxt.append(n)
-            frontier = nxt
-        raise RuntimeError("no path")
+                    if key not in nxt or cost < nxt[key][0]:
+                        nxt[key] = (cost, state)
+            for key, value in nxt.items():
+                best[key] = value
+            layer = list(nxt)
+        return None
 
     def move(self, cell):
         self.body = [cell] + self.body[:-1]
@@ -166,29 +184,102 @@ class Snake:
         return len(self.history) - 1
 
 
+def dist(a, b):
+    return abs(a[0] - b[0]) + abs(a[1] - b[1])
+
+
+def plan_route(start, points, end=None):
+    """Short open route from `start` through all `points` (optionally finishing near `end`):
+    nearest neighbour, then 2-opt until no reversal helps."""
+    route, todo = [], set(points)
+    here = start
+    while todo:
+        here = min(todo, key=lambda p: (dist(here, p), p))
+        todo.discard(here)
+        route.append(here)
+    seq = [start] + route + ([end] if end else [])
+    last = len(seq) - (2 if end else 1)
+    improved = True
+    while improved:
+        improved = False
+        for i in range(1, last):
+            for j in range(i + 1, last + 1):
+                a, b = seq[i - 1], seq[i]
+                c = seq[j]
+                d = seq[j + 1] if j + 1 < len(seq) else None
+                before = dist(a, b) + (dist(c, d) if d else 0)
+                after = dist(a, c) + (dist(b, d) if d else 0)
+                if after < before:
+                    seq[i:j + 1] = reversed(seq[i:j + 1])
+                    improved = True
+    return seq[1:last + 1]
+
+
+def stroke_order(start, pixels, toward):
+    """Exact shortest order to draw a letter's pixels (Held-Karp), entering from `start`
+    and finishing close to `toward` (the next letter). Lifting off the stroke to jump to a
+    non-adjacent pixel costs extra, so letters are traced in continuous lines."""
+    pts = sorted(pixels)
+    n = len(pts)
+    step = [[dist(a, b) + (JUMP_PENALTY if dist(a, b) > 1 else 0) for b in pts] for a in pts]
+    full = (1 << n) - 1
+    inf = float("inf")
+    cost = [[inf] * n for _ in range(1 << n)]
+    back = [[-1] * n for _ in range(1 << n)]
+    for i, p in enumerate(pts):
+        cost[1 << i][i] = dist(start, p)
+    for mask in range(1, full + 1):
+        row = cost[mask]
+        for i in range(n):
+            c = row[i]
+            if c == inf:
+                continue
+            for j in range(n):
+                if mask >> j & 1:
+                    continue
+                m2 = mask | 1 << j
+                c2 = c + step[i][j]
+                if c2 < cost[m2][j]:
+                    cost[m2][j] = c2
+                    back[m2][j] = i
+    last = min(range(n), key=lambda i: cost[full][i] + (dist(pts[i], toward) if toward else 0))
+    order, mask = [], full
+    while last != -1:
+        order.append(pts[last])
+        mask, last = mask & ~(1 << last), back[mask][last]
+    return order[::-1]
+
+
 def simulate(width, grid, letters):
     snake = Snake(width)
     events = {}  # cell -> [(step, color_key, fade)]; fade: blend in from the previous color
 
-    eaten = []  # (step, level) in eating order, for the progress bar
+    eaten = []  # (step, level) per eaten contribution, for the progress bar
 
-    # eat the lightest contributions first, steering around the darker ones
+    # eat along an optimized route that finishes near the first letter
     food = {c for c, level in grid.items() if level > 0}
-    while food:
-        level = min(grid[c] for c in food)
-        targets = {c for c in food if grid[c] == level}
-        for cell in snake.path_to(targets, avoid=food - targets):
-            t = snake.move(cell)
-            if cell in food:
-                food.discard(cell)
-                eaten.append((t, grid[cell]))
-                events.setdefault(cell, []).append((t, "empty", False))
+    first_letter = min(letters[0])
+    for goal in plan_route(snake.body[0], food, end=first_letter):
+        while goal in food:
+            for cell in snake.path_to(goal):
+                t = snake.move(cell)
+                if cell in food:  # anything on the way gets eaten too
+                    food.discard(cell)
+                    eaten.append((t, grid[cell]))
+                    events.setdefault(cell, []).append((t, "empty", False))
 
-    # write one letter at a time; crossing other letters does not paint them
-    for letter in letters:
+    # write each letter in its shortest stroke order, steering clear of letters not drawn yet
+    for i, letter in enumerate(letters):
+        upcoming = set().union(*letters[i + 1:])
+        toward = min(letters[i + 1]) if i + 1 < len(letters) else (width, 3)
         todo = set(letter)
-        while todo:
-            for cell in snake.path_to(todo):
+        if snake.body[0] in todo:
+            todo.discard(snake.body[0])
+            events.setdefault(snake.body[0], []).append((len(snake.history) - 1, "text", False))
+        for goal in stroke_order(snake.body[0], letter, toward):
+            if goal not in todo:
+                continue
+            for cell in snake.path_to(goal, avoid=upcoming):
                 t = snake.move(cell)
                 if cell in todo:
                     todo.discard(cell)
@@ -196,7 +287,7 @@ def simulate(width, grid, letters):
 
     # leave through the right edge, then hold the finished text on screen
     exit_row = snake.body[0][1]
-    for cell in snake.path_to({(width, exit_row)}):
+    for cell in snake.path_to((width, exit_row)):
         snake.move(cell)
     for i in range(1, SNAKE_LEN + 1):
         snake.move((width + i, exit_row))
@@ -222,6 +313,8 @@ def simulate(width, grid, letters):
             if timeline[-1][0] != fade_in:  # letters already faded to empty at fade_in
                 timeline.append((fade_in, "empty", False))
             timeline.append((end, "l%d" % level, True))
+    # bar pieces grouped by level, each group filling left to right as it is eaten
+    eaten.sort(key=lambda e: (e[1], e[0]))
     return snake.history, events, eaten, (fade_out, fade_in)
 
 
@@ -310,16 +403,16 @@ def render(width, grid, history, events, eaten, bar_fade, palette):
 
     w, h = width * CELL + 2 * CELL, bar_y + BAR_HEIGHT + 2 * CELL
     return ('<svg viewBox="%d %d %d %d" width="%d" height="%d" xmlns="http://www.w3.org/2000/svg">'
-            "<desc>Snake eats the contribution graph, then writes YOU WIN !!</desc>"
+            "<desc>Snake eats the contribution graph, then writes %s</desc>"
             "<style>%s</style>%s%s%s</svg>\n"
-            % (-CELL, -CELL, w, h, w, h, "".join(css), "".join(cells), '<g class="bar">%s</g>' % "".join(bar), "".join(segments)))
+            % (-CELL, -CELL, w, h, w, h, TEXT, "".join(css), "".join(cells), '<g class="bar">%s</g>' % "".join(bar), "".join(segments)))
 
 
 def main(argv):
     if len(argv) != 3:
         raise SystemExit(__doc__)
     width, grid = demo_grid() if argv[1] == "--demo" else fetch_grid(argv[1])
-    history, events, eaten, bar_fade = simulate(width, grid, text_cells("YOU WIN !!", width))
+    history, events, eaten, bar_fade = simulate(width, grid, text_cells(TEXT, width))
     os.makedirs(argv[2], exist_ok=True)
     for name, palette in (("github-contribution-grid-snake.svg", PALETTES["light"]),
                           ("github-contribution-grid-snake-dark.svg", PALETTES["dark"])):

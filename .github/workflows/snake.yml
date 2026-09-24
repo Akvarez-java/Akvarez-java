@@ -1,4 +1,4 @@
-# Generates a snake that eats your GitHub contributions, writes "YOU WIN !!",
+# Generates a snake that eats your GitHub contributions, writes TEXT from scripts/snake.py,
 # and pushes the SVGs to the `output` branch.
 name: Generate Snake
 
@@ -22,7 +22,7 @@ jobs:
       - name: Clone repo
         uses: actions/checkout@v4
 
-      # scripts/snake.py: the snake eats every contribution, then writes "YOU WIN !!"
+      # scripts/snake.py: the snake eats every contribution, then writes its TEXT
       - name: Generate the snake files in './dist/'
         run: python3 scripts/snake.py "${{ github.repository_owner }}" dist
         env:
