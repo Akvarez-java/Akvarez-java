@@ -8,4 +8,14 @@ Ryzen 9 9950X3D | RTX 5090 | 64GB RAM | 5TB SSD
 
 <br>
 
+## **My Snake**
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Akvarez-java/Akvarez-java/output/github-contribution-grid-snake-dark.svg" />
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/Akvarez-java/Akvarez-java/output/github-contribution-grid-snake.svg" />
+  <img alt="snake eating my contributions" src="https://raw.githubusercontent.com/Akvarez-java/Akvarez-java/output/github-contribution-grid-snake-dark.svg" />
+</picture>
+
+<br>
+
 -> Discord : j4tl6
