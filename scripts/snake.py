@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Generate a contribution-graph snake that eats every commit, then writes "YOU WIN !!".
 
+The snake grows one segment per contribution eaten; the finished text ends in a rainbow wave.
+
 Usage:
   GITHUB_TOKEN=... python3 scripts/snake.py <github_user> <output_dir>
   python3 scripts/snake.py --demo <output_dir>      # random data, no network
@@ -10,15 +12,16 @@ import os
 import random
 import sys
 import urllib.request
-from collections import deque
 
 ROWS = 7
 CELL = 16
 DOT = 12
 STEP_MS = 100
-HOLD_STEPS = 40
-SNAKE_LEN = 4
-SEGMENT_SIZES = [12, 10.5, 9, 7.5]
+HOLD_STEPS = 60
+RAINBOW_EVERY = 3  # steps between rainbow color shifts while holding the text
+SNAKE_LEN = 4  # starting length; +1 segment per contribution eaten
+HEAD_SIZE, TAIL_SIZE = 12, 5
+RAINBOW = ["#ff595e", "#ff924c", "#ffca3a", "#8ac926", "#1982c4", "#6a4c93"]
 
 PALETTES = {
     "light": {
@@ -100,14 +103,27 @@ class Snake:
         # the snake enters from the left, outside the grid
         self.body = [(-1 - i, 0) for i in range(SNAKE_LEN)]
         self.history = [list(self.body)]
+        self.growth = 0
 
     def inside(self, cell):
         x, y = cell
         return -1 <= x <= self.width and -1 <= y <= ROWS
 
     def path_to(self, targets):
-        """BFS to the nearest target, not running through the body before it has moved away."""
-        occupied = {cell: k for k, cell in enumerate(self.body)}
+        """BFS to the nearest target, not running through the body before it has moved away.
+
+        Falls back to crossing the body when a long snake has boxed itself in."""
+        try:
+            return self._bfs(targets, avoid_body=True)
+        except RuntimeError:
+            return self._bfs(targets, avoid_body=False)
+
+    def _bfs(self, targets, avoid_body):
+        # the cell under segment k frees up once the tail has passed it
+        vacate = {}
+        if avoid_body:
+            for k, cell in enumerate(self.body):
+                vacate[cell] = len(self.body) - k + self.growth
         start = self.body[0]
         prev = {start: None}
         frontier = [start]
@@ -127,8 +143,7 @@ class Snake:
                 for n in ((x + 1, y), (x, y + 1), (x, y - 1), (x - 1, y)):
                     if n in prev or not self.inside(n):
                         continue
-                    k = occupied.get(n)
-                    if k is not None and depth < SNAKE_LEN - k:
+                    if depth < vacate.get(n, 0):
                         continue
                     prev[n] = (x, y)
                     nxt.append(n)
@@ -136,7 +151,11 @@ class Snake:
         raise RuntimeError("no path")
 
     def move(self, cell):
-        self.body = [cell] + self.body[:-1]
+        if self.growth:
+            self.growth -= 1
+            self.body = [cell] + self.body
+        else:
+            self.body = [cell] + self.body[:-1]
         self.history.append(list(self.body))
         return len(self.history) - 1
 
@@ -151,6 +170,7 @@ def simulate(width, grid, letters):
             t = snake.move(cell)
             if cell in food:
                 food.discard(cell)
+                snake.growth += 1
                 events.setdefault(cell, []).append((t, "empty"))
 
     # write one letter at a time; crossing other letters does not paint them
@@ -167,8 +187,16 @@ def simulate(width, grid, letters):
     exit_row = snake.body[0][1]
     for cell in snake.path_to({(width, exit_row)}):
         snake.move(cell)
-    for i in range(1, SNAKE_LEN + 1):
+    for i in range(1, len(snake.body) + snake.growth + 1):
         snake.move((width + i, exit_row))
+
+    # rainbow wave sweeping across the text while it is held
+    hold_start = len(snake.history) - 1
+    for letter in letters:
+        for x, y in letter:
+            for j in range(0, HOLD_STEPS, RAINBOW_EVERY):
+                color = RAINBOW[(j // RAINBOW_EVERY - x // 2) % len(RAINBOW)]
+                events[(x, y)].append((hold_start + j, color))
     for _ in range(HOLD_STEPS):
         snake.history.append(list(snake.body))
     return snake.history, events
@@ -199,8 +227,8 @@ def render(width, grid, history, events, palette):
             start = palette["levels"][level - 1] if level else palette["empty"]
             frames = ["0%%{fill:%s}" % start]
             for t, key in timeline:
-                frames.append("%s%%{fill:%s}" % (pct(t, total), palette[key]))
-            frames.append("100%%{fill:%s}" % palette[timeline[-1][1]])
+                frames.append("%s%%{fill:%s}" % (pct(t, total), palette.get(key, key)))
+            frames.append("100%%{fill:%s}" % palette.get(timeline[-1][1], timeline[-1][1]))
             css.append("@keyframes %s{%s}" % (name, "".join(frames)))
             attrs = ' style="animation-name:%s"' % name
         off = (CELL - DOT) / 2
@@ -208,8 +236,11 @@ def render(width, grid, history, events, palette):
                      % (cls, x * CELL + off, y * CELL + off, DOT, DOT, attrs))
 
     segments = []
-    for k, size in enumerate(SEGMENT_SIZES):
-        track = [frame[k] for frame in history]
+    longest = max(len(frame) for frame in history)
+    for k in range(longest):
+        size = HEAD_SIZE - (HEAD_SIZE - TAIL_SIZE) * k / (longest - 1)
+        # segments not grown yet wait hidden under the tail
+        track = [frame[min(k, len(frame) - 1)] for frame in history]
         frames = []
         for t, pos in enumerate(track):
             if 0 < t < total:
@@ -222,6 +253,7 @@ def render(width, grid, history, events, palette):
         off = (CELL - size) / 2
         segments.append('<rect class="s" style="animation-name:s%d" x="%g" y="%g" width="%g" height="%g" rx="%g" ry="%g"/>'
                         % (k, off, off, size, size, size / 4, size / 4))
+    segments.reverse()  # head drawn last, on top
 
     w, h = width * CELL + 2 * CELL, ROWS * CELL + 2 * CELL
     return ('<svg viewBox="%d %d %d %d" width="%d" height="%d" xmlns="http://www.w3.org/2000/svg">'
