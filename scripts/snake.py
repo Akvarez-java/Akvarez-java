@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Generate a contribution-graph snake that eats every commit, then writes "YOU WIN !!".
 
-The snake eats the lightest contributions first and grows one segment per cell, filling a
-progress bar below the grid. It then shrinks back to its starting size, writes the text and
-ends with a rainbow wave.
+The snake eats the lightest contributions first, filling a progress bar below the grid, then
+writes the text, which ends with a rainbow wave. Finally the text and bar fade out and the
+contributions fade back in, so the loop restarts without a jump.
 
 Usage:
   GITHUB_TOKEN=... python3 scripts/snake.py <github_user> <output_dir>
@@ -21,8 +21,9 @@ DOT = 12
 STEP_MS = 100
 HOLD_STEPS = 60
 RAINBOW_EVERY = 3  # steps between rainbow color shifts while holding the text
-SNAKE_LEN = 4  # starting length; +1 segment per contribution eaten
-HEAD_SIZE, TAIL_SIZE = 12, 5
+FADE_STEPS = 12  # length of each fade (text/bar out, then contributions back in)
+SNAKE_LEN = 4
+HEAD_SIZE, TAIL_SIZE = 12, 7.5
 BAR_GAP, BAR_HEIGHT = 4, 10  # gap below the snake's outer lane, bar thickness
 RAINBOW = ["#ff595e", "#ff924c", "#ffca3a", "#8ac926", "#1982c4", "#6a4c93"]
 
@@ -103,11 +104,9 @@ def text_cells(text, width):
 class Snake:
     def __init__(self, width):
         self.width = width
-        # the snake enters from the left, outside the grid
-        self.body = [(-1 - i, 0) for i in range(SNAKE_LEN)]
+        # the snake starts fully off screen (left of the visible margin column) and crawls in
+        self.body = [(-2 - i, 0) for i in range(SNAKE_LEN)]
         self.history = [list(self.body)]
-        self.growth = 0
-        self.shrink = 0
 
     def inside(self, cell):
         x, y = cell
@@ -130,7 +129,7 @@ class Snake:
         vacate = {}
         if avoid_body:
             for k, cell in enumerate(self.body):
-                vacate[cell] = len(self.body) - k + self.growth
+                vacate[cell] = len(self.body) - k
         start = self.body[0]
         prev = {start: None}
         frontier = [start]
@@ -158,22 +157,18 @@ class Snake:
         raise RuntimeError("no path")
 
     def move(self, cell):
-        if self.growth:
-            self.growth -= 1
-            self.body = [cell] + self.body
-        elif self.shrink and len(self.body) > SNAKE_LEN:
-            # the tail retracts twice as fast as the head moves
-            self.shrink -= 1
-            self.body = [cell] + self.body[:-2]
-        else:
-            self.body = [cell] + self.body[:-1]
+        self.body = [cell] + self.body[:-1]
         self.history.append(list(self.body))
+        return len(self.history) - 1
+
+    def wait(self, steps):
+        self.history.extend(list(self.body) for _ in range(steps))
         return len(self.history) - 1
 
 
 def simulate(width, grid, letters):
     snake = Snake(width)
-    events = {}  # cell -> [(step, color_key)]
+    events = {}  # cell -> [(step, color_key, fade)]; fade: blend in from the previous color
 
     eaten = []  # (step, level) in eating order, for the progress bar
 
@@ -186,13 +181,8 @@ def simulate(width, grid, letters):
             t = snake.move(cell)
             if cell in food:
                 food.discard(cell)
-                snake.growth += 1
                 eaten.append((t, grid[cell]))
-                events.setdefault(cell, []).append((t, "empty"))
-
-    # digest back to the starting size so the text stays readable
-    snake.shrink = len(snake.body) + snake.growth
-    snake.growth = 0
+                events.setdefault(cell, []).append((t, "empty", False))
 
     # write one letter at a time; crossing other letters does not paint them
     for letter in letters:
@@ -202,32 +192,52 @@ def simulate(width, grid, letters):
                 t = snake.move(cell)
                 if cell in todo:
                     todo.discard(cell)
-                    events.setdefault(cell, []).append((t, "text"))
+                    events.setdefault(cell, []).append((t, "text", False))
 
     # leave through the right edge, then hold the finished text on screen
     exit_row = snake.body[0][1]
     for cell in snake.path_to({(width, exit_row)}):
         snake.move(cell)
-    for i in range(1, len(snake.body) + snake.growth + 1):
+    for i in range(1, SNAKE_LEN + 1):
         snake.move((width + i, exit_row))
 
     # rainbow wave sweeping across the text while it is held
     hold_start = len(snake.history) - 1
+    fade_out = snake.wait(HOLD_STEPS)
+    fade_in = snake.wait(FADE_STEPS)
+    end = snake.wait(FADE_STEPS)
     for letter in letters:
         for x, y in letter:
+            timeline = events[(x, y)]
             for j in range(0, HOLD_STEPS, RAINBOW_EVERY):
-                color = RAINBOW[(j // RAINBOW_EVERY - x // 2) % len(RAINBOW)]
-                events[(x, y)].append((hold_start + j, color))
-    for _ in range(HOLD_STEPS):
-        snake.history.append(list(snake.body))
-    return snake.history, events, eaten
+                hue = RAINBOW[(j // RAINBOW_EVERY - x // 2) % len(RAINBOW)]
+                timeline.append((hold_start + j, hue, False))
+            timeline.append((fade_out, hue, False))
+            timeline.append((fade_in, "empty", True))
+
+    # eaten contributions come back, ending exactly where the loop starts
+    for (x, y), level in grid.items():
+        if level and (x, y) in events:
+            timeline = events[(x, y)]
+            if timeline[-1][0] != fade_in:  # letters already faded to empty at fade_in
+                timeline.append((fade_in, "empty", False))
+            timeline.append((end, "l%d" % level, True))
+    return snake.history, events, eaten, (fade_out, fade_in)
 
 
 def pct(t, total):
     return ("%.3f" % (100 * t / total)).rstrip("0").rstrip(".")
 
 
-def render(width, grid, history, events, eaten, palette):
+def resolve_color(key, palette):
+    if key in palette:
+        return palette[key]
+    if key.startswith("l"):
+        return palette["levels"][int(key[1:]) - 1]
+    return key
+
+
+def render(width, grid, history, events, eaten, bar_fade, palette):
     total = len(history) - 1
     duration = total * STEP_MS
     css = [
@@ -247,11 +257,15 @@ def render(width, grid, history, events, eaten, palette):
         if timeline:
             name = "c%d_%d" % (x, y)
             start = palette["levels"][level - 1] if level else palette["empty"]
-            frames = ["0%%{fill:%s}" % start]
-            for t, key in timeline:
-                frames.append("%s%%{fill:%s}" % (pct(t, total), palette.get(key, key)))
-            frames.append("100%%{fill:%s}" % palette.get(timeline[-1][1], timeline[-1][1]))
-            css.append("@keyframes %s{%s}" % (name, "".join(frames)))
+            frames = [[0, "fill:%s" % start]]
+            for t, key, fade in timeline:
+                if fade:
+                    # a keyframe's timing function applies to the interval after it
+                    frames[-1][1] += ";animation-timing-function:linear"
+                frames.append([t, "fill:%s" % resolve_color(key, palette)])
+            if frames[-1][0] != total:
+                frames.append([total, frames[-1][1]])
+            css.append("@keyframes %s{%s}" % (name, "".join("%s%%{%s}" % (pct(t, total), d) for t, d in frames)))
             attrs = ' style="animation-name:%s"' % name
         off = (CELL - DOT) / 2
         cells.append('<rect class="%s" x="%g" y="%g" width="%d" height="%d" rx="2" ry="2"%s/>'
@@ -289,23 +303,28 @@ def render(width, grid, history, events, eaten, palette):
         bar.append('<rect class="b" style="animation-name:%s" fill="%s" x="%g" y="%d" width="%g" height="%d"/>'
                    % (name, palette["levels"][level - 1], bar_x + i * piece, bar_y, piece + 0.5, BAR_HEIGHT))
 
+    # the bar fades out as one group, so the overlapping pieces don't show seams
+    css.append(".bar{animation:bar %dms linear infinite}"
+               "@keyframes bar{0%%,%s%%{opacity:1}%s%%,100%%{opacity:0}}"
+               % (duration, pct(bar_fade[0], total), pct(bar_fade[1], total)))
+
     w, h = width * CELL + 2 * CELL, bar_y + BAR_HEIGHT + 2 * CELL
     return ('<svg viewBox="%d %d %d %d" width="%d" height="%d" xmlns="http://www.w3.org/2000/svg">'
             "<desc>Snake eats the contribution graph, then writes YOU WIN !!</desc>"
             "<style>%s</style>%s%s%s</svg>\n"
-            % (-CELL, -CELL, w, h, w, h, "".join(css), "".join(cells), "".join(bar), "".join(segments)))
+            % (-CELL, -CELL, w, h, w, h, "".join(css), "".join(cells), '<g class="bar">%s</g>' % "".join(bar), "".join(segments)))
 
 
 def main(argv):
     if len(argv) != 3:
         raise SystemExit(__doc__)
     width, grid = demo_grid() if argv[1] == "--demo" else fetch_grid(argv[1])
-    history, events, eaten = simulate(width, grid, text_cells("YOU WIN !!", width))
+    history, events, eaten, bar_fade = simulate(width, grid, text_cells("YOU WIN !!", width))
     os.makedirs(argv[2], exist_ok=True)
     for name, palette in (("github-contribution-grid-snake.svg", PALETTES["light"]),
                           ("github-contribution-grid-snake-dark.svg", PALETTES["dark"])):
         with open(os.path.join(argv[2], name), "w") as f:
-            f.write(render(width, grid, history, events, eaten, palette))
+            f.write(render(width, grid, history, events, eaten, bar_fade, palette))
     print("%d steps, %.1fs loop" % (len(history) - 1, (len(history) - 1) * STEP_MS / 1000))
 
 
