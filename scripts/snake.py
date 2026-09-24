@@ -184,6 +184,40 @@ class Snake:
         return len(self.history) - 1
 
 
+def slither(start, path, width):
+    """Turn long straight runs of `path` into a sideways wave (forward, side, forward,
+    forward, back, forward), alternating sides like a slithering snake. Same endpoints."""
+    moves, here = [], start
+    for cell in path:
+        moves.append((cell[0] - here[0], cell[1] - here[1]))
+        here = cell
+
+    def visible(c):
+        return 0 <= c[0] < width and 0 <= c[1] < ROWS
+
+    out, here, i, flip = [], start, 0, 1
+    while i < len(moves):
+        d = moves[i]
+        run = 1
+        while i + run < len(moves) and moves[i + run] == d:
+            run += 1
+        i += run
+        waves, rest = divmod(run, 4)  # each wave covers 4 cells forward
+        for _ in range(waves):
+            # bulge toward whichever side stays on the grid, alternating when both do
+            sides = [(d[1] * flip, d[0] * flip), (-d[1] * flip, -d[0] * flip)]
+            side = next((sd for sd in sides if visible((here[0] + d[0] + sd[0], here[1] + d[1] + sd[1]))), sides[0])
+            flip = -flip
+            back = (-side[0], -side[1])
+            for m in (d, side, d, d, back, d):
+                here = (here[0] + m[0], here[1] + m[1])
+                out.append(here)
+        for _ in range(rest):
+            here = (here[0] + d[0], here[1] + d[1])
+            out.append(here)
+    return out
+
+
 def dist(a, b):
     return abs(a[0] - b[0]) + abs(a[1] - b[1])
 
@@ -256,12 +290,12 @@ def simulate(width, grid, letters):
 
     eaten = []  # (step, level) per eaten contribution, for the progress bar
 
-    # eat along an optimized route that finishes near the first letter
+    # eat along an optimized route that finishes near the first letter, slithering on the way
     food = {c for c, level in grid.items() if level > 0}
     first_letter = min(letters[0])
     for goal in plan_route(snake.body[0], food, end=first_letter):
         while goal in food:
-            for cell in snake.path_to(goal):
+            for cell in slither(snake.body[0], snake.path_to(goal), width):
                 t = snake.move(cell)
                 if cell in food:  # anything on the way gets eaten too
                     food.discard(cell)
