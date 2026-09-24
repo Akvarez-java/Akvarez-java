@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Generate a contribution-graph snake that eats every commit, then writes "YOU WIN !!".
 
-The snake grows one segment per contribution eaten; the finished text ends in a rainbow wave.
+The snake eats the lightest contributions first and grows one segment per cell, filling a
+progress bar below the grid. It then shrinks back to its starting size, writes the text and
+ends with a rainbow wave.
 
 Usage:
   GITHUB_TOKEN=... python3 scripts/snake.py <github_user> <output_dir>
@@ -21,6 +23,7 @@ HOLD_STEPS = 60
 RAINBOW_EVERY = 3  # steps between rainbow color shifts while holding the text
 SNAKE_LEN = 4  # starting length; +1 segment per contribution eaten
 HEAD_SIZE, TAIL_SIZE = 12, 5
+BAR_GAP, BAR_HEIGHT = 4, 10  # gap below the snake's outer lane, bar thickness
 RAINBOW = ["#ff595e", "#ff924c", "#ffca3a", "#8ac926", "#1982c4", "#6a4c93"]
 
 PALETTES = {
@@ -104,21 +107,25 @@ class Snake:
         self.body = [(-1 - i, 0) for i in range(SNAKE_LEN)]
         self.history = [list(self.body)]
         self.growth = 0
+        self.shrink = 0
 
     def inside(self, cell):
         x, y = cell
         return -1 <= x <= self.width and -1 <= y <= ROWS
 
-    def path_to(self, targets):
-        """BFS to the nearest target, not running through the body before it has moved away.
+    def path_to(self, targets, avoid=frozenset()):
+        """BFS to the nearest target, not running through the body before it has moved away
+        and, when possible, not through the `avoid` cells.
 
         Falls back to crossing the body when a long snake has boxed itself in."""
-        try:
-            return self._bfs(targets, avoid_body=True)
-        except RuntimeError:
-            return self._bfs(targets, avoid_body=False)
+        for avoid_body, blocked in ((True, avoid), (True, frozenset()), (False, frozenset())):
+            try:
+                return self._bfs(targets, avoid_body, blocked)
+            except RuntimeError:
+                pass
+        raise RuntimeError("no path")
 
-    def _bfs(self, targets, avoid_body):
+    def _bfs(self, targets, avoid_body, blocked):
         # the cell under segment k frees up once the tail has passed it
         vacate = {}
         if avoid_body:
@@ -141,7 +148,7 @@ class Snake:
             nxt = []
             for x, y in frontier:
                 for n in ((x + 1, y), (x, y + 1), (x, y - 1), (x - 1, y)):
-                    if n in prev or not self.inside(n):
+                    if n in prev or not self.inside(n) or (n in blocked and n not in targets):
                         continue
                     if depth < vacate.get(n, 0):
                         continue
@@ -154,6 +161,10 @@ class Snake:
         if self.growth:
             self.growth -= 1
             self.body = [cell] + self.body
+        elif self.shrink and len(self.body) > SNAKE_LEN:
+            # the tail retracts twice as fast as the head moves
+            self.shrink -= 1
+            self.body = [cell] + self.body[:-2]
         else:
             self.body = [cell] + self.body[:-1]
         self.history.append(list(self.body))
@@ -164,14 +175,24 @@ def simulate(width, grid, letters):
     snake = Snake(width)
     events = {}  # cell -> [(step, color_key)]
 
+    eaten = []  # (step, level) in eating order, for the progress bar
+
+    # eat the lightest contributions first, steering around the darker ones
     food = {c for c, level in grid.items() if level > 0}
     while food:
-        for cell in snake.path_to(food):
+        level = min(grid[c] for c in food)
+        targets = {c for c in food if grid[c] == level}
+        for cell in snake.path_to(targets, avoid=food - targets):
             t = snake.move(cell)
             if cell in food:
                 food.discard(cell)
                 snake.growth += 1
+                eaten.append((t, grid[cell]))
                 events.setdefault(cell, []).append((t, "empty"))
+
+    # digest back to the starting size so the text stays readable
+    snake.shrink = len(snake.body) + snake.growth
+    snake.growth = 0
 
     # write one letter at a time; crossing other letters does not paint them
     for letter in letters:
@@ -199,20 +220,21 @@ def simulate(width, grid, letters):
                 events[(x, y)].append((hold_start + j, color))
     for _ in range(HOLD_STEPS):
         snake.history.append(list(snake.body))
-    return snake.history, events
+    return snake.history, events, eaten
 
 
 def pct(t, total):
     return ("%.3f" % (100 * t / total)).rstrip("0").rstrip(".")
 
 
-def render(width, grid, history, events, palette):
+def render(width, grid, history, events, eaten, palette):
     total = len(history) - 1
     duration = total * STEP_MS
     css = [
         ".c{shape-rendering:geometricPrecision;fill:%s;stroke-width:1px;stroke:%s;"
         "animation:none %dms step-end infinite}" % (palette["empty"], palette["border"], duration),
         ".s{shape-rendering:geometricPrecision;fill:%s;animation:none %dms linear infinite}" % (palette["snake"], duration),
+        ".b{shape-rendering:crispEdges;opacity:0;animation:none %dms step-end infinite}" % duration,
     ]
     for i, color in enumerate(palette["levels"], 1):
         css.append(".l%d{fill:%s}" % (i, color))
@@ -255,23 +277,35 @@ def render(width, grid, history, events, palette):
                         % (k, off, off, size, size, size / 4, size / 4))
     segments.reverse()  # head drawn last, on top
 
-    w, h = width * CELL + 2 * CELL, ROWS * CELL + 2 * CELL
+    # progress bar below the grid: one piece per eaten contribution, in eating order
+    bar = []
+    bar_x, bar_w = (CELL - DOT) / 2, width * CELL - (CELL - DOT)
+    bar_y = (ROWS + 1) * CELL + BAR_GAP
+    for i, (t, level) in enumerate(eaten):
+        name = "b%d" % i
+        css.append("@keyframes %s{0%%{opacity:0}%s%%,100%%{opacity:1}}" % (name, pct(t, total)))
+        piece = bar_w / len(eaten)
+        # pieces overlap by half a pixel so no seams show between them
+        bar.append('<rect class="b" style="animation-name:%s" fill="%s" x="%g" y="%d" width="%g" height="%d"/>'
+                   % (name, palette["levels"][level - 1], bar_x + i * piece, bar_y, piece + 0.5, BAR_HEIGHT))
+
+    w, h = width * CELL + 2 * CELL, bar_y + BAR_HEIGHT + 2 * CELL
     return ('<svg viewBox="%d %d %d %d" width="%d" height="%d" xmlns="http://www.w3.org/2000/svg">'
             "<desc>Snake eats the contribution graph, then writes YOU WIN !!</desc>"
-            "<style>%s</style>%s%s</svg>\n"
-            % (-CELL, -CELL, w, h, w, h, "".join(css), "".join(cells), "".join(segments)))
+            "<style>%s</style>%s%s%s</svg>\n"
+            % (-CELL, -CELL, w, h, w, h, "".join(css), "".join(cells), "".join(bar), "".join(segments)))
 
 
 def main(argv):
     if len(argv) != 3:
         raise SystemExit(__doc__)
     width, grid = demo_grid() if argv[1] == "--demo" else fetch_grid(argv[1])
-    history, events = simulate(width, grid, text_cells("YOU WIN !!", width))
+    history, events, eaten = simulate(width, grid, text_cells("YOU WIN !!", width))
     os.makedirs(argv[2], exist_ok=True)
     for name, palette in (("github-contribution-grid-snake.svg", PALETTES["light"]),
                           ("github-contribution-grid-snake-dark.svg", PALETTES["dark"])):
         with open(os.path.join(argv[2], name), "w") as f:
-            f.write(render(width, grid, history, events, palette))
+            f.write(render(width, grid, history, events, eaten, palette))
     print("%d steps, %.1fs loop" % (len(history) - 1, (len(history) - 1) * STEP_MS / 1000))
 
 
