@@ -22,9 +22,18 @@ jobs:
       - name: Clone repo
         uses: actions/checkout@v4
 
+      # Platane/snk only computes the eating route here (same moves as the classic snk snake);
+      # if it fails, scripts/snake.py falls back to its own route
+      - name: Compute the eating route with Platane/snk
+        uses: Platane/snk/svg-only@d8f6715049803e982ee5ff501b6b9b7d5deeb09b # v3.5.0
+        continue-on-error: true
+        with:
+          github_user_name: ${{ github.repository_owner }}
+          outputs: snk/route.svg
+
       # scripts/snake.py: the snake eats every contribution, then writes its TEXT
       - name: Generate the snake files in './dist/'
-        run: python3 scripts/snake.py "${{ github.repository_owner }}" dist
+        run: python3 scripts/snake.py "${{ github.repository_owner }}" dist snk/route.svg
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

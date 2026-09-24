@@ -1,15 +1,19 @@
 #!/usr/bin/env python3
 """Generate a contribution-graph snake that eats every commit, then writes TEXT.
 
-The snake eats the contributions along an optimized route, filling a progress bar below the
-grid, then writes the text stroke by stroke, which ends with a rainbow wave. Finally the text and bar fade out and the
+The snake eats the contributions, filling a progress bar below the grid, then writes the text
+stroke by stroke, which ends with a rainbow wave. Finally the text and bar fade out and the
 contributions fade back in, so the loop restarts without a jump.
 
+When given an SVG made by Platane/snk, the snake eats along snk's route (same moves as the
+classic snk snake); otherwise it follows its own planned route.
+
 Usage:
-  GITHUB_TOKEN=... python3 scripts/snake.py <github_user> <output_dir>
-  python3 scripts/snake.py --demo <output_dir>      # random data, no network
+  GITHUB_TOKEN=<token> python3 scripts/snake.py <github_user> <output_dir> [snk_svg]
+  python3 scripts/snake.py --demo <output_dir> [snk_svg]    # random data, no network
 """
 import json
+import re
 import os
 import random
 import sys
@@ -284,23 +288,76 @@ def stroke_order(start, pixels, toward):
     return order[::-1]
 
 
-def simulate(width, grid, letters):
+def load_snk_route(path):
+    """Per-step snake bodies [(head, ..., tail), ...] read back from a Platane/snk SVG.
+
+    snk writes one keyframe animation per segment (s0 = head), keeping only the keyframes
+    where the direction changes; positions in between are straight, one cell per step."""
+    with open(path) as f:
+        svg = f.read()
+    duration = int(re.search(r"\.s\{[^}]*?(\d+)ms", svg).group(1))
+    steps = round(duration / STEP_MS)
+    tracks = []
+    for k in range(SNAKE_LEN):
+        body = re.search(r"@keyframes s%d\{(.*?\})\}" % k, svg).group(1)
+        keys = []
+        for times, x, y in re.findall(r"([\d.,%]+)\{transform:translate\((-?[\d.]+)px,(-?[\d.]+)px\)\}", body):
+            for pct_ in times.split(","):
+                t = round(float(pct_.rstrip("%")) / 100 * steps)
+                keys.append((t, (round(float(x) / CELL), round(float(y) / CELL))))
+        keys.sort()
+        track = []
+        for (t0, a), (t1, b) in zip(keys, keys[1:]):
+            for t in range(t0, t1):
+                f_ = (t - t0) / (t1 - t0)
+                track.append((round(a[0] + (b[0] - a[0]) * f_), round(a[1] + (b[1] - a[1]) * f_)))
+        track.append(keys[-1][1])
+        tracks.append(track)
+    frames = [list(body) for body in zip(*tracks)]
+    for a, b in zip(frames, frames[1:]):
+        if dist(a[0], b[0]) > 1:
+            raise ValueError("snk route is not continuous")
+    return frames
+
+
+def enter_frames(body):
+    """Frames that bring the snake in from above the visible area into `body`."""
+    tail = body[-1]
+    track = [(tail[0], tail[1] - i) for i in range(len(body) + 1, 0, -1)] + body[::-1]
+    return [track[i:i + len(body)][::-1] for i in range(len(track) - len(body) + 1)]
+
+
+def simulate(width, grid, letters, snk_route=None):
     snake = Snake(width)
     events = {}  # cell -> [(step, color_key, fade)]; fade: blend in from the previous color
 
     eaten = []  # (step, level) per eaten contribution, for the progress bar
 
-    # eat along an optimized route that finishes near the first letter, slithering on the way
     food = {c for c, level in grid.items() if level > 0}
+
+    def eat(cell, t):
+        if cell in food:
+            food.discard(cell)
+            eaten.append((t, grid[cell]))
+            events.setdefault(cell, []).append((t, "empty", False))
+
+    if snk_route:
+        # follow snk's route up to the last contribution it eats
+        heads = [frame[0] for frame in snk_route]
+        last = max((i for i, h in enumerate(heads) if h in food), default=0)
+        snake.history = enter_frames(snk_route[0])
+        for frame in snk_route[1:last + 1]:
+            snake.history.append(list(frame))
+            snake.body = list(frame)
+            eat(frame[0], len(snake.history) - 1)
+
+    # eat anything left along an optimized route that finishes near the first letter,
+    # slithering on the way
     first_letter = min(letters[0])
     for goal in plan_route(snake.body[0], food, end=first_letter):
         while goal in food:
             for cell in slither(snake.body[0], snake.path_to(goal), width):
-                t = snake.move(cell)
-                if cell in food:  # anything on the way gets eaten too
-                    food.discard(cell)
-                    eaten.append((t, grid[cell]))
-                    events.setdefault(cell, []).append((t, "empty", False))
+                eat(cell, snake.move(cell))  # anything on the way gets eaten too
 
     # write each letter in its shortest stroke order, steering clear of letters not drawn yet
     for i, letter in enumerate(letters):
@@ -443,10 +500,16 @@ def render(width, grid, history, events, eaten, bar_fade, palette):
 
 
 def main(argv):
-    if len(argv) != 3:
+    if len(argv) not in (3, 4):
         raise SystemExit(__doc__)
     width, grid = demo_grid() if argv[1] == "--demo" else fetch_grid(argv[1])
-    history, events, eaten, bar_fade = simulate(width, grid, text_cells(TEXT, width))
+    route = None
+    if len(argv) == 4:
+        try:
+            route = load_snk_route(argv[3])
+        except (OSError, AttributeError, ValueError) as e:
+            print("could not read snk route (%s), using the built-in route" % e)
+    history, events, eaten, bar_fade = simulate(width, grid, text_cells(TEXT, width), route)
     os.makedirs(argv[2], exist_ok=True)
     for name, palette in (("github-contribution-grid-snake.svg", PALETTES["light"]),
                           ("github-contribution-grid-snake-dark.svg", PALETTES["dark"])):
