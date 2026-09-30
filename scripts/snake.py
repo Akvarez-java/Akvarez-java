@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Auto Snake Eating Commit Animation
 """Generate a contribution-graph snake that eats every commit, then writes TEXT.
 
 The snake eats the contributions, filling a progress bar below the grid, then writes the text
