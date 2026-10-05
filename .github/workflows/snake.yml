@@ -1,6 +1,5 @@
 # Generates a snake that eats your GitHub contributions, writes TEXT from scripts/snake.py,
 # and pushes the SVGs to the `output` branch.
-# made by claude and skid nighter 
 name: Generate Snake
 
 on:
