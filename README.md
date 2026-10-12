@@ -18,4 +18,4 @@ Ryzen 9 9950X3D | RTX 5090 | 64GB RAM | 5TB SSD
 
 <br>
 
--> My discord : j4tl6
+-> discord : j4tl6
