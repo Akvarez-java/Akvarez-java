@@ -9,29 +9,42 @@
 Building open-source, high-performance Minecraft server software and plugins.  
 Specialized in packet-level networking, packet interception, and anti-cheat development.
 
-**Workstation**
-- CPU: AMD Ryzen 9 9950X3D
-- GPU: NVIDIA GeForce RTX 5090
-- RAM: 64GB DDR5
-- Storage: 5TB NVMe SSD
-- Primary IDE: IntelliJ IDEA Ultimate
+### Focus & Specialization
+
+- Packet manipulation, custom network protocol decoders, and byte-level inspection.
+- Anti-cheat architecture and combat heuristic validation (reach, hitbox, rotation smoothing, aim assist).
+- High-concurrency multithreaded server architectures (Folia region-threading and Paper).
+
+### Workstation
+
+| Hardware | Specification |
+| :--- | :--- |
+| **CPU** | AMD Ryzen 9 9950X3D |
+| **GPU** | NVIDIA GeForce RTX 5090 |
+| **RAM** | 64GB DDR5 |
+| **Storage** | 5TB NVMe M.2 SSD |
+| **OS** | Linux |
+| **Primary IDE** | IntelliJ IDEA Ultimate |
 
 <br>
 
 ## Tech Stack & Tools
 
 <p align="left">
-  <img src="https://img.shields.io/badge/Java_21-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white" />
-  <img src="https://img.shields.io/badge/Kotlin-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white" />
-  <img src="https://img.shields.io/badge/PaperMC-191919?style=for-the-badge&logo=curseforge&logoColor=white" />
-  <img src="https://img.shields.io/badge/Folia-181825?style=for-the-badge&logo=purpur&logoColor=white" />
-  <img src="https://img.shields.io/badge/PacketEvents-313244?style=for-the-badge&logo=packet&logoColor=a6e3a1" />
-  <img src="https://img.shields.io/badge/IntelliJ_IDEA-000000?style=for-the-badge&logo=intellijidea&logoColor=white" />
-  <img src="https://img.shields.io/badge/Redis-DC382D?style=for-the-badge&logo=redis&logoColor=white" />
-  <img src="https://img.shields.io/badge/Gradle-02303A?style=for-the-badge&logo=gradle&logoColor=white" />
-  <img src="https://img.shields.io/badge/Maven-C71A36?style=for-the-badge&logo=apachemaven&logoColor=white" />
-  <img src="https://img.shields.io/badge/Git-F05032?style=for-the-badge&logo=git&logoColor=white" />
-  <img src="https://img.shields.io/badge/Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black" />
+  <img src="https://img.shields.io/badge/Java_21-181825?style=for-the-badge&logo=openjdk&logoColor=a6e3a1" />
+  <img src="https://img.shields.io/badge/Kotlin-181825?style=for-the-badge&logo=kotlin&logoColor=cba6f7" />
+  <img src="https://img.shields.io/badge/PaperMC-181825?style=for-the-badge&logo=curseforge&logoColor=89b4fa" />
+  <img src="https://img.shields.io/badge/Folia-181825?style=for-the-badge&logo=purpur&logoColor=f38ba8" />
+  <img src="https://img.shields.io/badge/PacketEvents-181825?style=for-the-badge&logo=packet&logoColor=a6e3a1" />
+</p>
+
+<p align="left">
+  <img src="https://img.shields.io/badge/IntelliJ_IDEA-181825?style=for-the-badge&logo=intellijidea&logoColor=fab387" />
+  <img src="https://img.shields.io/badge/Redis-181825?style=for-the-badge&logo=redis&logoColor=eba0ac" />
+  <img src="https://img.shields.io/badge/Gradle-181825?style=for-the-badge&logo=gradle&logoColor=94e2d5" />
+  <img src="https://img.shields.io/badge/Maven-181825?style=for-the-badge&logo=apachemaven&logoColor=f9e2af" />
+  <img src="https://img.shields.io/badge/Git-181825?style=for-the-badge&logo=git&logoColor=f38ba8" />
+  <img src="https://img.shields.io/badge/Linux-181825?style=for-the-badge&logo=linux&logoColor=cdd6f4" />
 </p>
 
 <p align="center">
@@ -48,8 +61,10 @@ Specialized in packet-level networking, packet interception, and anti-cheat deve
 
 <br>
 
-<div align="center">
+## Contact
+
+<p align="left">
   <a href="https://discord.com">
-    <img src="https://img.shields.io/badge/Discord-j4tl6-5865F2?style=for-the-badge&logo=discord&logoColor=white" />
+    <img src="https://img.shields.io/badge/Discord-j4tl6-181825?style=for-the-badge&logo=discord&logoColor=89b4fa" />
   </a>
-</div>
+</p>
