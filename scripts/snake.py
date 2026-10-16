@@ -75,22 +75,45 @@ LEVELS = {"NONE": 0, "FIRST_QUARTILE": 1, "SECOND_QUARTILE": 2, "THIRD_QUARTILE"
 
 def fetch_grid(user):
     query = """query($login:String!){user(login:$login){contributionsCollection{contributionCalendar{
-      weeks{contributionDays{contributionLevel weekday}}}}}}"""
+      weeks{contributionDays{contributionLevel weekday contributionCount}}}}}}"""
     req = urllib.request.Request(
         "https://api.github.com/graphql",
         data=json.dumps({"query": query, "variables": {"login": user}}).encode(),
-        headers={"Authorization": "bearer " + os.environ["GITHUB_TOKEN"], "Content-Type": "application/json"},
+        headers={"Authorization": "bearer " + os.environ["GITHUB_TOKEN"], "Content-Type": "application/json", "User-Agent": "snake"},
     )
     with urllib.request.urlopen(req) as res:
         body = json.load(res)
     if body.get("errors"):
         raise SystemExit("GraphQL error: %s" % body["errors"])
     weeks = body["data"]["user"]["contributionsCollection"]["contributionCalendar"]["weeks"]
-    grid = {}
+    
+    days_data = []
     for x, week in enumerate(weeks):
         for day in week["contributionDays"]:
-            grid[(x, day["weekday"])] = LEVELS[day["contributionLevel"]]
+            days_data.append((x, day["weekday"], day.get("contributionCount", 0)))
+
+    counts = sorted([c for _, _, c in days_data if c > 0])
+    if counts:
+        p50 = counts[int(len(counts) * 0.50)]
+        p75 = counts[int(len(counts) * 0.75)]
+        p90 = counts[int(len(counts) * 0.90)]
+    else:
+        p50 = p75 = p90 = 0
+
+    grid = {}
+    for x, y, c in days_data:
+        if c == 0:
+            grid[(x, y)] = 0
+        elif c <= p50:
+            grid[(x, y)] = 1
+        elif c <= p75:
+            grid[(x, y)] = 2
+        elif c <= p90:
+            grid[(x, y)] = 3
+        else:
+            grid[(x, y)] = 4
     return len(weeks), grid
+
 
 
 def demo_grid():
