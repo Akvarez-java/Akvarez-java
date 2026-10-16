@@ -3,14 +3,9 @@
 name: Generate Snake
 
 on:
-  schedule:
-    # every 12 hours
-    - cron: "0 */12 * * *"
-  # allows running the workflow manually from the Actions tab
+  # Trigger manually only to avoid overwriting private contribution snake with public-only token
   workflow_dispatch:
-  push:
-    branches:
-      - main
+
 
 permissions:
   contents: write
