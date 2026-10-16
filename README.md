@@ -35,16 +35,7 @@
   <img alt="snake eating my contributions" src="https://raw.githubusercontent.com/Akvarez-java/Akvarez-java/output/github-contribution-grid-snake-dark.svg" />
 </picture>
 
-<br>
 
-### 📊 **GitHub Activity**
-
-<p align="center">
-  <img src="https://github-readme-stats.vercel.app/api?username=Akvarez-java&show_icons=true&theme=catppuccin_mocha&hide_border=true&bg_color=181825&title_color=cdd6f4&text_color=a6adc8&icon_color=a6e3a1" height="155" />
-  <img src="https://github-readme-streak-stats.herokuapp.com/?user=Akvarez-java&theme=catppuccin-mocha&hide_border=true&background=181825&ring=a6e3a1&fire=a6e3a1&currStreakLabel=a6e3a1" height="155" />
-</p>
-
-<br>
 
 <div align="center">
   <a href="https://discord.com">
