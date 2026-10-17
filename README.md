@@ -54,9 +54,9 @@ Specialized in packet-level networking, packet interception, and anti-cheat deve
 ## Contribution Snake
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Akvarez-java/Akvarez-java/output/github-contribution-grid-snake-dark.svg" />
-  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/Akvarez-java/Akvarez-java/output/github-contribution-grid-snake.svg" />
-  <img alt="snake eating my contributions" src="https://raw.githubusercontent.com/Akvarez-java/Akvarez-java/output/github-contribution-grid-snake-dark.svg" />
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Akvarez-java/Akvarez-java/output/snake.svg" />
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/Akvarez-java/Akvarez-java/output/snake.svg" />
+  <img alt="snake eating my contributions" src="https://raw.githubusercontent.com/Akvarez-java/Akvarez-java/output/snake.svg" />
 </picture>
 
 <br>
