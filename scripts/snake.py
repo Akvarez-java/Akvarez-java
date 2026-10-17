@@ -365,23 +365,14 @@ def simulate(width, grid, letters, snk_route=None):
             eaten.append((t, grid[cell]))
             events.setdefault(cell, []).append((t, "empty", False))
 
-    if snk_route:
-        # follow snk's route up to the last contribution it eats
-        heads = [frame[0] for frame in snk_route]
-        last = max((i for i, h in enumerate(heads) if h in food), default=0)
-        snake.history = enter_frames(snk_route[0])
-        for frame in snk_route[1:last + 1]:
-            snake.history.append(list(frame))
-            snake.body = list(frame)
-            eat(frame[0], len(snake.history) - 1)
-
-    # eat anything left along an optimized route that finishes near the first letter,
-    # slithering on the way
-    first_letter = min(letters[0])
-    for goal in plan_route(snake.body[0], food, end=first_letter):
-        while goal in food:
-            for cell in slither(snake.body[0], snake.path_to(goal), width):
-                eat(cell, snake.move(cell))  # anything on the way gets eaten too
+    # Eat contributions in chronological order (left-to-right, column by column)
+    # Even columns go top-to-bottom, odd columns go bottom-to-top (smooth serpentine sweep)
+    sorted_food = sorted(food, key=lambda c: (c[0], -c[1] if c[0] % 2 == 1 else c[1]))
+    for goal in sorted_food:
+        if goal not in food:
+            continue
+        for cell in snake.path_to(goal):
+            eat(cell, snake.move(cell))
 
     # write each letter in its shortest stroke order, steering clear of letters not drawn yet
     for i, letter in enumerate(letters):
