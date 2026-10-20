@@ -7,9 +7,5 @@ I make Minecraft plugins and mess around with server internals (Paper / Folia) a
 - PaperMC & Folia
 - ProtocolLib & PacketEvents
 - Redis, Gradle
-
-#### Repos:
-- [MeteorChecker](https://github.com/Akvarez-java/MeteorChecker) - Paper/Folia plugin detecting Meteor Client connections via sign packet probes.
-
 ---
 Discord: `j4tl6`
