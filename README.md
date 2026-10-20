@@ -6,25 +6,13 @@
 
 ## About Me
 
-Building open-source, high-performance Minecraft server software and plugins.  
-Specialized in packet-level networking, packet interception, and anti-cheat development.
+Software developer working with Minecraft server internals, packet-level network protocols, and high-concurrency systems.
 
-### Focus & Specialization
+### Core Focus
 
-- Packet manipulation, custom network protocol decoders, and byte-level inspection.
-- Anti-cheat architecture and combat heuristic validation (reach, hitbox, rotation smoothing, aim assist).
-- High-concurrency multithreaded server architectures (Folia region-threading and Paper).
-
-### Workstation
-
-| Hardware | Specification |
-| :--- | :--- |
-| **CPU** | AMD Ryzen 9 9950X3D |
-| **GPU** | NVIDIA GeForce RTX 5090 |
-| **RAM** | 64GB DDR5 |
-| **Storage** | 5TB NVMe M.2 SSD |
-| **OS** | Linux |
-| **Primary IDE** | IntelliJ IDEA Ultimate |
+- **Network & Protocol:** Custom packet handling, byte-level inspection, and ProtocolLib / PacketEvents integration.
+- **Server Internals:** Multithreaded architectures targeting Folia (region threading) and PaperMC.
+- **Security & Integrity:** Combat validation heuristics and client-server synchronization checks.
 
 <br>
 
@@ -39,10 +27,8 @@ Specialized in packet-level networking, packet interception, and anti-cheat deve
 </p>
 
 <p align="left">
-  <img src="https://img.shields.io/badge/IntelliJ_IDEA-181825?style=for-the-badge&logo=intellijidea&logoColor=fab387" />
   <img src="https://img.shields.io/badge/Redis-181825?style=for-the-badge&logo=redis&logoColor=eba0ac" />
   <img src="https://img.shields.io/badge/Gradle-181825?style=for-the-badge&logo=gradle&logoColor=94e2d5" />
-  <img src="https://img.shields.io/badge/Maven-181825?style=for-the-badge&logo=apachemaven&logoColor=f9e2af" />
   <img src="https://img.shields.io/badge/Git-181825?style=for-the-badge&logo=git&logoColor=f38ba8" />
   <img src="https://img.shields.io/badge/Linux-181825?style=for-the-badge&logo=linux&logoColor=cdd6f4" />
 </p>
