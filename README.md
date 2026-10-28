@@ -1,3 +1,3 @@
 ### hey 👋
 --- 
-Discord: `j4tl6`
+Discord: j4tl6
